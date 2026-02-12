@@ -2,6 +2,10 @@
 
 A backend API for a study tool application that supports document uploads, processing, and study session management.
 
+## Frontend Repository
+
+The Frontend for this project is available at: [https://github.com/Reksely/study-tool-frontend-prod](https://github.com/Reksely/study-tool-frontend-prod)
+
 ## Features
 
 - User authentication
