@@ -3,7 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const Study = require('../models/Study');
 const { authMiddleware } = require('../middleware/auth');
-const { formatStudyDocument, generateQuizQuestions, chatAboutQuestion, streamChatMessage, getQuestionRecommendation, analyzeQuizResults, generateVideoScript } = require('../utils/pollinations');
+const { formatStudyDocument, generateQuizQuestions, chatAboutQuestion, streamChatMessage, getQuestionRecommendation, analyzeQuizResults, generateVideoScript } = require('../utils/study');
 const officeParser = require('officeparser');
 
 // Helper function to parse PDF using pdfjs-dist
