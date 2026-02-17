@@ -44,7 +44,10 @@ ALLOWED_ORIGINS=http://localhost:3000,https://your-frontend-url.com
 PORT=3005
 GOOGLE_CLIENT_ID=your-google-oauth-client-id
 JWT_SECRET=your-secret-jwt-key-here-use-long-random-string
+POLLINATIONS_API_KEY=your_pollinations_api_key_from_enter.pollinations.ai
 ```
+
+**Note:** Get your Pollinations AI API key from [https://enter.pollinations.ai/](https://enter.pollinations.ai/)
 
 ## Running the Application
 

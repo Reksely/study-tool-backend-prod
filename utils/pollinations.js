@@ -1,14 +1,19 @@
 /* 
-Pollinations AI used to be free at time of writing this code. Now it is not.
+Pollinations AI used to be fully free at time of writing this code. Now it is partly.
 
 Reference https://enter.pollinations.ai/ and https://enter.pollinations.ai/api/docs to update 
 with your own API key.
+
+Set POLLINATIONS_API_KEY environment variable with your API key.
 */
 
 
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+
+// Get API key from environment variable
+const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY || '';
 
 // Load prompts from text files
 const promptsDir = path.join(__dirname, '..', 'prompts');
@@ -45,52 +50,71 @@ const PROMPTS = {
 };
 
 /**
- * Send messages to Pollinations AI API
+ * Send messages to Pollinations AI API using new API format
  * @param {Array} messages - Array of message objects with role and content
  * @param {number} retryCount - Number of retries on failure
+ * @param {string} model - Model to use (default: 'openai')
  * @returns {Promise<string>} - The AI response text
  */
-async function sendPollinationsMessages(messages, retryCount = 3) {
-    const apiEndpoint = 'https://text.pollinations.ai/openai';
-    
+async function sendPollinationsMessages(messages, retryCount = 3, model = 'openai') {
     let attempts = 0;
+    
+    // Extract system and user messages
+    let systemPrompt = '';
+    let userPrompt = '';
+    
+    for (const msg of messages) {
+        if (msg.role === 'system') {
+            systemPrompt = msg.content;
+        } else if (msg.role === 'user') {
+            userPrompt = msg.content;
+        } else if (msg.role === 'assistant') {
+            // For chat history, append to user prompt
+            userPrompt += `\n\nAssistant: ${msg.content}`;
+        }
+    }
+    
+    // Combine system and user prompts for the new API format
+    const fullPrompt = systemPrompt ? `${systemPrompt}\n\n${userPrompt}` : userPrompt;
     
     while (attempts < retryCount) {
         try {
             attempts++;
             console.log(`Generating text with Pollinations AI, attempt ${attempts}/${retryCount}...`);
             
-            const response = await axios.post(
-                apiEndpoint,
-                {
-                    messages: messages,
-                    model: 'openai',
+            // URL encode the prompt
+            const encodedPrompt = encodeURIComponent(fullPrompt);
+            const apiEndpoint = `https://gen.pollinations.ai/text/${encodedPrompt}`;
+            
+            const headers = {};
+            if (POLLINATIONS_API_KEY) {
+                headers['Authorization'] = `Bearer ${POLLINATIONS_API_KEY}`;
+            }
+            
+            const response = await axios.get(apiEndpoint, {
+                headers,
+                params: {
+                    model: model,
+                    json: false,
                     stream: false
                 },
-                {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    timeout: 300000 // 5 minutes
-                }
-            );
+                timeout: 300000 // 5 minutes
+            });
             
             console.log('Text generation completed successfully!');
             
-            // Handle OpenAI-compatible response format
-            if (response.data && response.data.choices && response.data.choices.length > 0) {
-                let content = response.data.choices[0].message?.content;
-                if (content) {
-                    // Clean up any special tokens
-                    content = content
-                        .replace(/<\|.*?\|>[a-zA-Z0-9_]*?(?=<\||$)/g, '')
-                        .replace(/<\|.*?\|>/g, '')
-                        .trim();
-                    return content;
-                }
+            // The new API returns plain text directly
+            if (typeof response.data === 'string') {
+                let content = response.data.trim();
+                // Clean up any special tokens
+                content = content
+                    .replace(/<\|.*?\|>[a-zA-Z0-9_]*?(?=<\||$)/g, '')
+                    .replace(/<\|.*?\|>/g, '')
+                    .trim();
+                return content;
             }
             
-            throw new Error(`No content found in response. Response structure: ${JSON.stringify(response.data)}`);
+            throw new Error(`Unexpected response format: ${JSON.stringify(response.data)}`);
             
         } catch (error) {
             console.error(`Attempt ${attempts}/${retryCount} failed:`, error.message);
@@ -469,7 +493,7 @@ async function generateVideoScript(topicTitle, topicContent) {
 }
 
 /**
- * Stream chat messages using SSE with Pollinations AI
+ * Stream chat messages using SSE with Pollinations AI (new API)
  * @param {string} context - The context for the chat
  * @param {string} userMessage - The user's message
  * @param {string} studyContent - The study content for context
@@ -478,77 +502,54 @@ async function generateVideoScript(topicTitle, topicContent) {
  * @returns {Promise<string>} - The complete response text
  */
 async function streamChatMessage(context, userMessage, studyContent, chatHistory = [], res) {
-    const apiEndpoint = 'https://text.pollinations.ai/openai';
-    
     const systemContent = PROMPTS.streamChatMessage.system
         .replace('${context}', context)
         .replace('${studyContent}', studyContent);
     
-    const messages = [
-        {
-            role: 'system',
-            content: systemContent
-        }
-    ];
-
+    // Build full prompt with history
+    let fullPrompt = systemContent + '\n\n';
+    
     // Add chat history (last 10 messages to avoid token limits)
     const recentHistory = chatHistory.slice(-10);
     for (const msg of recentHistory) {
-        messages.push({
-            role: msg.role,
-            content: msg.content
-        });
+        if (msg.role === 'user') {
+            fullPrompt += `User: ${msg.content}\n\n`;
+        } else if (msg.role === 'assistant') {
+            fullPrompt += `Assistant: ${msg.content}\n\n`;
+        }
     }
-
+    
     // Add current user message
-    messages.push({
-        role: 'user',
-        content: userMessage
-    });
+    fullPrompt += `User: ${userMessage}\n\nAssistant:`;
     
     try {
-        const response = await axios.post(
-            apiEndpoint,
-            {
-                messages: messages,
+        // URL encode the prompt
+        const encodedPrompt = encodeURIComponent(fullPrompt);
+        const apiEndpoint = `https://gen.pollinations.ai/text/${encodedPrompt}`;
+        
+        const headers = {};
+        if (POLLINATIONS_API_KEY) {
+            headers['Authorization'] = `Bearer ${POLLINATIONS_API_KEY}`;
+        }
+        
+        const response = await axios.get(apiEndpoint, {
+            headers,
+            params: {
                 model: 'openai',
                 stream: true
             },
-            {
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                timeout: 300000,
-                responseType: 'stream'
-            }
-        );
+            timeout: 300000,
+            responseType: 'stream'
+        });
 
         let fullContent = '';
         
         return new Promise((resolve, reject) => {
             response.data.on('data', (chunk) => {
-                const lines = chunk.toString().split('\n').filter(line => line.trim() !== '');
-                
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const data = line.slice(6);
-                        if (data === '[DONE]') {
-                            continue;
-                        }
-                        
-                        try {
-                            const parsed = JSON.parse(data);
-                            const content = parsed.choices?.[0]?.delta?.content;
-                            if (content) {
-                                fullContent += content;
-                                // Send the chunk to the client
-                                res.write(`data: ${JSON.stringify({ content })}\n\n`);
-                            }
-                        } catch (e) {
-                            // Ignore parse errors for incomplete chunks
-                        }
-                    }
-                }
+                const chunkStr = chunk.toString();
+                fullContent += chunkStr;
+                // Send the chunk to the client
+                res.write(`data: ${JSON.stringify({ content: chunkStr })}\n\n`);
             });
 
             response.data.on('end', () => {
