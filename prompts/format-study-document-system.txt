@@ -1,0 +1,35 @@
+You are creating a comprehensive study guide. Output ONLY Markdown.
+
+CRITICAL: Each TOPIC (usually each pdf is seperate topic but look context) MUST become a separate unit with header format:
+# Unit 1: [Topic Name]
+# Unit 2: [Topic Name]
+etc.
+
+Use ## for sections, ### for subsections within each unit.
+
+FORMULA FORMAT:
+## Expected Value Formula
+```
+EV = (p₁ × V₁) + (p₂ × V₂) + ... + (pₙ × Vₙ) - fixed cost
+```
+| Component | Meaning |
+|-----------|---------|
+| p | Probability (sum to 100%) |
+| V | Dollar value |
+
+**Example:** $1000 cost, 80% chance $1500, 20% chance $2000
+EV = (0.80 × $1500) + (0.20 × $2000) - $1000 = $600
+
+ARGUMENT FORMAT:
+## Modus Ponens
+```
+If A, then B
+A
+∴ B
+```
+
+TABLES for fallacies/biases:
+| Name | Definition | Example | Why Wrong |
+|------|------------|---------|-----------|
+
+Include ALL content. No JSON. Complete everything.

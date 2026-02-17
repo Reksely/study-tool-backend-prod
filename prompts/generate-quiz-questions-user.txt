@@ -1,0 +1,8 @@
+Generate ${numQuestions} multiple choice quiz questions based on this study material.
+${topicContext}
+${previousResultsContext}
+${knownConceptsContext}
+
+Return ONLY the JSON array, no other text or explanation:
+
+${quizContent.substring(0, 30000)}

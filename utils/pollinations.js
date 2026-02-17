@@ -7,6 +7,42 @@ with your own API key.
 
 
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+
+// Load prompts from text files
+const promptsDir = path.join(__dirname, '..', 'prompts');
+
+function loadPrompt(filename) {
+    const filePath = path.join(promptsDir, filename);
+    return fs.readFileSync(filePath, 'utf8');
+}
+
+// Cache prompts at module load time
+const PROMPTS = {
+    formatStudyDocument: {
+        system: loadPrompt('format-study-document-system.txt'),
+        user: loadPrompt('format-study-document-user.txt')
+    },
+    generateQuizQuestions: {
+        system: loadPrompt('generate-quiz-questions-system.txt'),
+        user: loadPrompt('generate-quiz-questions-user.txt')
+    },
+    chatAboutQuestion: {
+        system: loadPrompt('chat-about-question-system.txt')
+    },
+    analyzeQuizResults: {
+        system: loadPrompt('analyze-quiz-results-system.txt'),
+        user: loadPrompt('analyze-quiz-results-user.txt')
+    },
+    generateVideoScript: {
+        system: loadPrompt('generate-video-script-system.txt'),
+        user: loadPrompt('generate-video-script-user.txt')
+    },
+    streamChatMessage: {
+        system: loadPrompt('stream-chat-message-system.txt')
+    }
+};
 
 /**
  * Send messages to Pollinations AI API
@@ -87,59 +123,20 @@ async function formatStudyDocument(rawContent, title, studyFor = '', pdfFileName
         ? `Source files: ${pdfFileNames.join(', ')}. Each PDF should become its own unit/topic.`
         : '';
     
+    const userContent = PROMPTS.formatStudyDocument.user
+        .replace('${studyContext}', studyContext)
+        .replace('${fileContext}', fileContext)
+        .replace('${title}', title)
+        .replace('${rawContent}', rawContent);
+    
     const messages = [
         {
             role: 'system',
-            content: `You are creating a comprehensive study guide. Output ONLY Markdown.
-
-CRITICAL: Each TOPIC (usually each pdf is seperate topic but look context) MUST become a separate unit with header format:
-# Unit 1: [Topic Name]
-# Unit 2: [Topic Name]
-etc.
-
-Use ## for sections, ### for subsections within each unit.
-
-FORMULA FORMAT:
-## Expected Value Formula
-\`\`\`
-EV = (p₁ × V₁) + (p₂ × V₂) + ... + (pₙ × Vₙ) - fixed cost
-\`\`\`
-| Component | Meaning |
-|-----------|---------|
-| p | Probability (sum to 100%) |
-| V | Dollar value |
-
-**Example:** $1000 cost, 80% chance $1500, 20% chance $2000
-EV = (0.80 × $1500) + (0.20 × $2000) - $1000 = $600
-
-ARGUMENT FORMAT:
-## Modus Ponens
-\`\`\`
-If A, then B
-A
-∴ B
-\`\`\`
-
-TABLES for fallacies/biases:
-| Name | Definition | Example | Why Wrong |
-|------|------------|---------|-----------|
-
-Include ALL content. No JSON. Complete everything.`
+            content: PROMPTS.formatStudyDocument.system
         },
         {
             role: 'user',
-            content: `Create study guide. IMPORTANT: Use "# Unit 1:", "# Unit 2:" etc for each PDF.
-
-${studyContext}
-${fileContext}
-
-Title: ${title}
-
-Each TOPIC = one "# Unit X: [Name]" section.
-Include all formulas, fallacies, biases, argument types with tables and examples. Do not make formulas if it is not actual formula mentioned in the notes.
-
-Content:
-${rawContent}`
+            content: userContent
         }
     ];
 
@@ -276,43 +273,21 @@ Generate questions about DIFFERENT concepts from the material that the student h
 Focus on NEW topics and concepts they haven't mastered.`;
     }
     
+    const userContent = PROMPTS.generateQuizQuestions.user
+        .replace('${numQuestions}', numQuestions)
+        .replace('${topicContext}', topicContext)
+        .replace('${previousResultsContext}', previousResultsContext)
+        .replace('${knownConceptsContext}', knownConceptsContext)
+        .replace('${quizContent.substring(0, 30000)}', quizContent.substring(0, 30000));
+    
     const messages = [
         {
             role: 'system',
-            content: `You are an expert quiz generator. Create multiple choice questions that test understanding of the material.
-
-Return a JSON array of questions in this exact format (NO other text, ONLY the JSON array):
-[
-  {
-    "question": "The question text",
-    "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
-    "correctAnswer": 0,
-    "explanation": "Brief explanation of why this is correct",
-    "hint": "A helpful hint that guides the student without giving away the answer",
-    "topicId": "topic-1"
-  }
-]
-
-CRITICAL JSON RULES:
-- Return ONLY valid JSON - no text before or after the array
-- Escape all quotes inside strings with backslash: \"
-- Do NOT use smart quotes or special characters
-- Do NOT include A), B), C), D) prefixes in options - just the answer text
-- Include topicId to indicate which topic the question is from
-- Make questions that test real understanding, not just memorization
-- Include a mix of difficulty levels
-- Each hint should help the student think without revealing the answer`
+            content: PROMPTS.generateQuizQuestions.system
         },
         {
             role: 'user',
-            content: `Generate ${numQuestions} multiple choice quiz questions based on this study material.
-${topicContext}
-${previousResultsContext}
-${knownConceptsContext}
-
-Return ONLY the JSON array, no other text or explanation:
-
-${quizContent.substring(0, 30000)}`
+            content: userContent
         }
     ];
 
@@ -372,32 +347,14 @@ ${quizContent.substring(0, 30000)}`
  * @returns {Promise<string>} - AI response
  */
 async function chatAboutQuestion(context, userMessage, studyContent, chatHistory = []) {
+    const systemContent = PROMPTS.chatAboutQuestion.system
+        .replace('${context}', context)
+        .replace('${studyContent}', studyContent);
+    
     const messages = [
         {
             role: 'system',
-            content: `You are a helpful study tutor assistant. Be concise, clear, and educational.
-
-CURRENT CONTEXT (IMPORTANT - READ THIS):
-${context}
-
-Study material for reference:
-${studyContent}
-
-IMPORTANT RULES:
-- Pay attention to the CURRENT CONTEXT above - it tells you what question the user is on and what they selected
-- If the user asks "what did I select" or similar, refer to the CURRENT CONTEXT
-- Use proper line breaks between paragraphs
-- Use bullet points (- ) for lists
-- Use **bold** for key terms
-- Keep responses focused and well-structured
-- Use 1-2 relevant emojis max
-- Break up long explanations into short paragraphs
-- For math: wrap ALL math expressions in dollar signs. Use $...$ for inline, $$...$$ for blocks
-- NEVER use backslashes before dollar amounts - write $720 not \\$720
-- NEVER use \\[ \\] or [ ] brackets for math
-- Keep math simple: $0.6 \\times 1200 = 720$ not $0.6 \\times \\$1{,}200$
-- For currency in math, just use the number: $720 + 720 = 1440$ then say "= \\$1,440" outside the math
-- NEVER generate markdown tables (|---|) - use bullet points or numbered lists instead`
+            content: systemContent
         }
     ];
 
@@ -456,56 +413,25 @@ async function analyzeQuizResults(results, studyContent, topics = []) {
     const wrongQuestions = results.filter(r => !r.isCorrect);
     const correctQuestions = results.filter(r => r.isCorrect);
     
+    const correctAnswersText = correctQuestions.map(q => `- Question: "${q.question}"\n  Answer: "${q.correctAnswer}"`).join('\n\n');
+    const incorrectAnswersText = wrongQuestions.map(q => `- Question: "${q.question}"\n  User answered: "${q.userAnswer}"\n  Correct answer: "${q.correctAnswer}"`).join('\n\n');
+    
+    const userContent = PROMPTS.analyzeQuizResults.user
+        .replace('${correct}', correct)
+        .replace('${total}', total)
+        .replace('${percentage}', percentage)
+        .replace('${correctQuestions.map(q => `- Question: "${q.question}"\n  Answer: "${q.correctAnswer}"`).join(\'\n\n\')}', correctAnswersText)
+        .replace('${wrongQuestions.map(q => `- Question: "${q.question}"\n  User answered: "${q.userAnswer}"\n  Correct answer: "${q.correctAnswer}"`).join(\'\n\n\')}', incorrectAnswersText)
+        .replace('${studyContent.substring(0, 5000)}', studyContent.substring(0, 5000));
+    
     const messages = [
         {
             role: 'system',
-            content: `You are a helpful study tutor analyzing quiz results. Provide encouraging, constructive feedback.
-
-Generate a personalized analysis in markdown format. Be specific about what the student understands well and what they need to work on.
-
-FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
-
-## 📊 Performance Summary
-
-[Brief encouraging summary based on score]
-
-## ✅ What You Know Well
-
-[List specific concepts they got right - be specific about the topics/concepts, not just "question 1"]
-
-## ⚠️ Areas to Improve
-
-[For each wrong answer, explain:
-- The concept that was tested
-- Why the correct answer is right
-- A brief tip to remember it]
-
-## 📚 Study Recommendations
-
-[Specific actionable advice on what to review]
-
-## 💪 Next Steps
-
-[Encouraging closing with specific suggestions]
-
-Keep it concise but helpful. Use bullet points. Be specific about concepts, not question numbers.`
+            content: PROMPTS.analyzeQuizResults.system
         },
         {
             role: 'user',
-            content: `Analyze these quiz results:
-
-Score: ${correct}/${total} (${percentage}%)
-
-CORRECT ANSWERS:
-${correctQuestions.map(q => `- Question: "${q.question}"\n  Answer: "${q.correctAnswer}"`).join('\n\n')}
-
-INCORRECT ANSWERS:
-${wrongQuestions.map(q => `- Question: "${q.question}"\n  User answered: "${q.userAnswer}"\n  Correct answer: "${q.correctAnswer}"`).join('\n\n')}
-
-Study material context (for understanding the topics):
-${studyContent.substring(0, 5000)}
-
-Provide a helpful, encouraging analysis.`
+            content: userContent
         }
     ];
 
@@ -519,33 +445,18 @@ Provide a helpful, encouraging analysis.`
  * @returns {Promise<string>} - Video script
  */
 async function generateVideoScript(topicTitle, topicContent) {
+    const userContent = PROMPTS.generateVideoScript.user
+        .replace('${topicTitle}', topicTitle)
+        .replace('${topicContent.substring(0, 3000)}', topicContent.substring(0, 3000));
+    
     const messages = [
         {
             role: 'system',
-            content: `You are a viral TikTok content creator who makes educational content engaging and memorable.
-
-Create a short, punchy script for a TikTok video (30-60 seconds when spoken) that explains the key concepts.
-
-RULES:
-- Write in a conversational, energetic tone like you're talking to a friend
-- Use short sentences that are easy to follow
-- Include hooks and attention grabbers
-- Make it entertaining while educational
-- Each line should be a separate thought/sentence
-- NO emojis, NO hashtags, NO "like and subscribe"
-- Just the spoken script, nothing else
-- Keep it under 150 words
-- Start with a hook question or bold statement
-- End with a memorable takeaway`
+            content: PROMPTS.generateVideoScript.system
         },
         {
             role: 'user',
-            content: `Create a TikTok script about: ${topicTitle}
-
-Key content to cover:
-${topicContent.substring(0, 3000)}
-
-Write ONLY the script text, one sentence per line:`
+            content: userContent
         }
     ];
 
@@ -569,32 +480,14 @@ Write ONLY the script text, one sentence per line:`
 async function streamChatMessage(context, userMessage, studyContent, chatHistory = [], res) {
     const apiEndpoint = 'https://text.pollinations.ai/openai';
     
+    const systemContent = PROMPTS.streamChatMessage.system
+        .replace('${context}', context)
+        .replace('${studyContent}', studyContent);
+    
     const messages = [
         {
             role: 'system',
-            content: `You are a helpful study tutor assistant. Be concise, clear, and educational.
-
-CURRENT CONTEXT (IMPORTANT - READ THIS):
-${context}
-
-Study material for reference:
-${studyContent}
-
-IMPORTANT RULES:
-- Pay attention to the CURRENT CONTEXT above - it tells you what question the user is on and what they selected
-- If the user asks "what did I select" or similar, refer to the CURRENT CONTEXT
-- Use proper line breaks between paragraphs
-- Use bullet points (- ) for lists
-- Use **bold** for key terms
-- Keep responses focused and well-structured
-- Use 1-2 relevant emojis max
-- Break up long explanations into short paragraphs
-- For math: wrap ALL math expressions in dollar signs. Use $...$ for inline, $$...$$ for blocks
-- NEVER use backslashes before dollar amounts - write $720 not \\$720
-- NEVER use \\[ \\] or [ ] brackets for math
-- Keep math simple: $0.6 \\times 1200 = 720$ not $0.6 \\times \\$1{,}200$
-- For currency in math, just use the number: $720 + 720 = 1440$ then say "= \\$1,440" outside the math
-- NEVER generate markdown tables (|---|) - use bullet points or numbered lists instead`
+            content: systemContent
         }
     ];
 

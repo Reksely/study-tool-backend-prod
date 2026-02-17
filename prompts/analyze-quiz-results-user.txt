@@ -1,0 +1,14 @@
+Analyze these quiz results:
+
+Score: ${correct}/${total} (${percentage}%)
+
+CORRECT ANSWERS:
+${correctQuestions.map(q => `- Question: "${q.question}"\n  Answer: "${q.correctAnswer}"`).join('\n\n')}
+
+INCORRECT ANSWERS:
+${wrongQuestions.map(q => `- Question: "${q.question}"\n  User answered: "${q.userAnswer}"\n  Correct answer: "${q.correctAnswer}"`).join('\n\n')}
+
+Study material context (for understanding the topics):
+${studyContent.substring(0, 5000)}
+
+Provide a helpful, encouraging analysis.

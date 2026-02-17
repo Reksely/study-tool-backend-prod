@@ -1,0 +1,12 @@
+Create study guide. IMPORTANT: Use "# Unit 1:", "# Unit 2:" etc for each PDF.
+
+${studyContext}
+${fileContext}
+
+Title: ${title}
+
+Each TOPIC = one "# Unit X: [Name]" section.
+Include all formulas, fallacies, biases, argument types with tables and examples. Do not make formulas if it is not actual formula mentioned in the notes.
+
+Content:
+${rawContent}

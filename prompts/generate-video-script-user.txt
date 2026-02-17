@@ -1,0 +1,6 @@
+Create a TikTok script about: ${topicTitle}
+
+Key content to cover:
+${topicContent.substring(0, 3000)}
+
+Write ONLY the script text, one sentence per line:
